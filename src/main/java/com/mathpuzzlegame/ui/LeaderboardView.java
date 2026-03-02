@@ -14,6 +14,7 @@ public class LeaderboardView extends JPanel {
     private final GameService gameService;
 
     private final JPanel rowsPanel = new JPanel();
+    private final JScrollPane scrollPane;
 
     public LeaderboardView(AppFrame appFrame, GameService gameService) {
         this.appFrame = appFrame;
@@ -27,9 +28,17 @@ public class LeaderboardView extends JPanel {
         title.setHorizontalAlignment(SwingConstants.CENTER);
 
         rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
+        rowsPanel.setOpaque(true);
+        Color bg = UIManager.getColor("Panel.background");
+        if (bg != null) {
+            rowsPanel.setBackground(bg);
+        }
 
-        JScrollPane scrollPane = new JScrollPane(rowsPanel);
+        scrollPane = new JScrollPane(rowsPanel);
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        if (scrollPane.getViewport() != null && bg != null) {
+            scrollPane.getViewport().setBackground(bg);
+        }
 
         JButton backButton = new JButton("Back");
         backButton.putClientProperty("JButton.buttonType", "roundRect");
@@ -47,6 +56,19 @@ public class LeaderboardView extends JPanel {
         rowsPanel.removeAll();
 
         JPanel header = new JPanel(new GridLayout(1, 4, 8, 8));
+        header.setOpaque(true);
+        Color headerBg = UIManager.getColor("TableHeader.background");
+        if (headerBg == null) {
+            headerBg = UIManager.getColor("Panel.background");
+        }
+        if (headerBg != null) {
+            header.setBackground(headerBg);
+        }
+        Color sep = UIManager.getColor("Separator.foreground");
+        if (sep == null) {
+            sep = new Color(0, 0, 0, 30);
+        }
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, sep));
         header.add(createHeaderLabel("Rank"));
         header.add(createHeaderLabel("Player"));
         header.add(createHeaderLabel("Score"));
@@ -59,10 +81,32 @@ public class LeaderboardView extends JPanel {
                 : null;
 
         int rank = 1;
+        Color tableBg = UIManager.getColor("Table.background");
+        if (tableBg == null) {
+            tableBg = UIManager.getColor("Panel.background");
+        }
+        Color alt = UIManager.getColor("Table.alternateRowColor");
+        if (alt == null && tableBg != null) {
+            alt = new Color(
+                    Math.max(0, Math.min(255, tableBg.getRed() - 6)),
+                    Math.max(0, Math.min(255, tableBg.getGreen() - 6)),
+                    Math.max(0, Math.min(255, tableBg.getBlue() - 6))
+            );
+        }
+
         for (UserScore score : scores) {
             JPanel row = new JPanel(new GridLayout(1, 4, 8, 8));
+            row.setOpaque(true);
+
+            if (tableBg != null) {
+                row.setBackground((rank % 2 == 0 && alt != null) ? alt : tableBg);
+            }
             if (currentUsername != null && currentUsername.equals(score.getUsername())) {
-                row.setBackground(new Color(230, 240, 255));
+                Color sel = UIManager.getColor("List.selectionBackground");
+                if (sel == null) {
+                    sel = new Color(230, 240, 255);
+                }
+                row.setBackground(sel);
             }
             row.add(createCellLabel(String.valueOf(rank++)));
             row.add(createCellLabel(score.getUsername()));
@@ -79,12 +123,23 @@ public class LeaderboardView extends JPanel {
         JLabel label = new JLabel(text);
         label.setFont(label.getFont().deriveFont(Font.BOLD, 14f));
         label.setHorizontalAlignment(SwingConstants.CENTER);
+        Color fg = UIManager.getColor("TableHeader.foreground");
+        if (fg == null) {
+            fg = UIManager.getColor("Label.foreground");
+        }
+        if (fg != null) {
+            label.setForeground(fg);
+        }
         return label;
     }
 
     private JLabel createCellLabel(String text) {
         JLabel label = new JLabel(text);
         label.setHorizontalAlignment(SwingConstants.CENTER);
+        Color fg = UIManager.getColor("Label.foreground");
+        if (fg != null) {
+            label.setForeground(fg);
+        }
         return label;
     }
 }

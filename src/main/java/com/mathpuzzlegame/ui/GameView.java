@@ -1,20 +1,27 @@
 package com.mathpuzzlegame.ui;
 
 import com.mathpuzzlegame.service.GameService;
+import com.mathpuzzlegame.service.ImageService;
+import com.mathpuzzlegame.service.MusicService;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class GameView extends JPanel {
 
     private final AppFrame appFrame;
     private final GameService gameService;
+    private final MusicService musicService;
+    private final ImageService imageService;
 
     private final JLabel difficultyLabel = new JLabel();
     private final JLabel timerLabel = new JLabel();
@@ -32,9 +39,18 @@ public class GameView extends JPanel {
     private JButton firstRevealed;
     private JButton secondRevealed;
 
-    public GameView(AppFrame appFrame, GameService gameService) {
+    private final JToggleButton musicToggle = new JToggleButton();
+    private final JSlider volumeSlider = new JSlider(0, 100, 80);
+
+    // image handling
+    private Map<Integer, CompletableFuture<ImageIcon>> imageFutures;
+    private static final int CARD_ICON_SIZE = 72;
+
+    public GameView(AppFrame appFrame, GameService gameService, MusicService musicService, ImageService imageService) {
         this.appFrame = appFrame;
         this.gameService = gameService;
+        this.musicService = musicService;
+        this.imageService = imageService;
 
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -66,7 +82,21 @@ public class GameView extends JPanel {
         JButton endGameButton = new JButton("End Game");
         endGameButton.putClientProperty("JButton.buttonType", "roundRect");
 
+        musicToggle.putClientProperty("JButton.buttonType", "roundRect");
+        musicToggle.setFocusable(false);
+        updateMusicToggleLabel();
+
+        volumeSlider.setPreferredSize(new Dimension(80, volumeSlider.getPreferredSize().height));
+        volumeSlider.setOpaque(false);
+        volumeSlider.addChangeListener(e -> {
+            float level = volumeSlider.getValue() / 100f;
+            musicService.setVolume(level);
+        });
+
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottom.add(new JLabel("Music"));
+        bottom.add(musicToggle);
+        bottom.add(volumeSlider);
         bottom.add(hintButton);
         bottom.add(endGameButton);
 
@@ -77,6 +107,14 @@ public class GameView extends JPanel {
 
         hintButton.addActionListener(e -> useHint());
         endGameButton.addActionListener(e -> finishGame());
+        musicToggle.addActionListener(e -> {
+            boolean muted = musicToggle.isSelected();
+            musicService.setMuted(muted);
+            updateMusicToggleLabel();
+            if (!muted) {
+                musicService.startBackgroundMusic();
+            }
+        });
 
         // gridPanel configured when game starts
         this.putClientProperty("gridPanel", gridPanel);
@@ -103,6 +141,16 @@ public class GameView extends JPanel {
         timer.start();
     }
 
+    private void updateMusicToggleLabel() {
+        if (musicService.isMuted()) {
+            musicToggle.setSelected(true);
+            musicToggle.setText("Off");
+        } else {
+            musicToggle.setSelected(false);
+            musicToggle.setText("On");
+        }
+    }
+
     private void tick() {
         timeRemaining--;
         timerLabel.setText("Time left: " + timeRemaining + "s");
@@ -124,13 +172,18 @@ public class GameView extends JPanel {
         }
         Collections.shuffle(cardValues);
 
+        // kick off async image loading for each pair
+        int pairCount = totalCards / 2;
+        imageFutures = imageService.loadCardImagesAsync(pairCount, CARD_ICON_SIZE);
+
         JPanel gridPanel = (JPanel) this.getClientProperty("gridPanel");
         gridPanel.removeAll();
         gridPanel.setLayout(new GridLayout(gridSize, gridSize, 12, 12));
 
         for (int i = 0; i < totalCards; i++) {
             JButton card = new JButton();
-            card.putClientProperty("value", cardValues.get(i));
+            int pairIndex = cardValues.get(i);
+            card.putClientProperty("value", pairIndex);
             card.putClientProperty("revealed", false);
             card.putClientProperty("matched", false);
             card.putClientProperty("index", i);
@@ -139,18 +192,63 @@ public class GameView extends JPanel {
             card.addActionListener(new CardClickHandler(card));
             cardButtons.add(card);
             gridPanel.add(card);
+
+            // attach image when it becomes available
+            CompletableFuture<ImageIcon> future = imageFutures.get(pairIndex);
+            if (future != null) {
+                future.thenAccept(icon -> {
+                    if (icon == null) {
+                        return;
+                    }
+                    SwingUtilities.invokeLater(() -> {
+                        card.putClientProperty("cardIcon", icon);
+                        if (Boolean.TRUE.equals(card.getClientProperty("revealed"))) {
+                            Object v = card.getClientProperty("value");
+                            int value = (v instanceof Integer) ? (Integer) v : 0;
+                            styleCardAsRevealed(card, value);
+                        }
+                    });
+                });
+            }
         }
 
         gridPanel.revalidate();
         gridPanel.repaint();
     }
 
+    private static final Icon LOADING_ICON = createLoadingIcon();
+
+    private static Icon createLoadingIcon() {
+        int size = CARD_ICON_SIZE;
+        BufferedImage img = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(220, 220, 230));
+            g2.fillRoundRect(2, 2, size - 4, size - 4, size / 3, size / 3);
+            g2.setColor(new Color(200, 200, 210));
+            g2.drawRoundRect(2, 2, size - 4, size - 4, size / 3, size / 3);
+        } finally {
+            g2.dispose();
+        }
+        return new ImageIcon(img);
+    }
+
     private void styleCardAsHidden(JButton card) {
+        card.setIcon(null);
         card.setText("");
     }
 
     private void styleCardAsRevealed(JButton card, int value) {
-        card.setText(String.valueOf(value));
+        // Use only images for the game: either the real Banana image or a soft placeholder.
+        card.setText("");
+
+        Object iconObj = card.getClientProperty("cardIcon");
+        if (iconObj instanceof ImageIcon icon) {
+            card.setIcon(icon);
+        } else {
+            card.setIcon(LOADING_ICON);
+        }
     }
 
     private void finishGame() {
