@@ -15,6 +15,8 @@ public class HomeView extends JPanel {
     private final ThemeManager themeManager;
 
     private final JLabel bestScoreLabel = new JLabel("0");
+    private final JLabel totalGamesLabel = new JLabel("0");
+    private final JLabel gamesByDifficultyLabel = new JLabel("0 / 0 / 0");
     private final DefaultListModel<String> leaderboardPreviewModel = new DefaultListModel<>();
 
     public HomeView(AppFrame appFrame, GameService gameService, ThemeManager themeManager) {
@@ -29,8 +31,10 @@ public class HomeView extends JPanel {
         title.setFont(title.getFont().deriveFont(Font.BOLD, 24f));
         title.setHorizontalAlignment(SwingConstants.CENTER);
 
-        JPanel statsPanel = new JPanel(new GridLayout(1, 2, 16, 16));
+        JPanel statsPanel = new JPanel(new GridLayout(2, 2, 16, 16));
         statsPanel.add(createStatCard("Best score", bestScoreLabel));
+        statsPanel.add(createStatCard("Total games", totalGamesLabel));
+        statsPanel.add(createStatCard("Beginner / Intermediate / Advanced", gamesByDifficultyLabel));
 
         JList<String> leaderboardPreview = new JList<>(leaderboardPreviewModel);
         JScrollPane leaderboardScroll = new JScrollPane(leaderboardPreview);
@@ -91,6 +95,16 @@ public class HomeView extends JPanel {
     public void refreshStats() {
         int best = gameService.getCurrentUserBestScore();
         bestScoreLabel.setText(String.valueOf(best));
+
+        int totalGames = gameService.getTotalGamesForCurrentUser();
+        totalGamesLabel.setText(String.valueOf(totalGames));
+
+        int beginnerGames = gameService.getTotalGamesForCurrentUser(com.mathpuzzlegame.model.Difficulty.BEGINNER);
+        int intermediateGames = gameService.getTotalGamesForCurrentUser(com.mathpuzzlegame.model.Difficulty.INTERMEDIATE);
+        int advancedGames = gameService.getTotalGamesForCurrentUser(com.mathpuzzlegame.model.Difficulty.ADVANCED);
+        gamesByDifficultyLabel.setText(
+                beginnerGames + " / " + intermediateGames + " / " + advancedGames
+        );
 
         leaderboardPreviewModel.clear();
         gameService.getTopScoresByTime().stream()
