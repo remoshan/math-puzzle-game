@@ -179,5 +179,5 @@ Contributions are welcome.
 
 ## License
 
-This project is licensed under the **MIT License** (add a `LICENSE` file if not present).
+This project is licensed under the **MIT License**. The `LICENSE` file is included in the repository root; see it for the full license text and details.
 
