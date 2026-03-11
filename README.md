@@ -10,12 +10,20 @@ This project is a modern **Java desktop** app that uses **Swing** for UI, **Flat
 
 Add screenshots here (recommended):
 
-```md
-![Login](docs/images/login.png)
-![Home](docs/images/home.png)
-![Game](docs/images/game.png)
-![Leaderboard](docs/images/leaderboard.png)
-```
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151510" src="https://github.com/user-attachments/assets/336576d2-1dbb-4247-ba10-074b644b507a" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151522" src="https://github.com/user-attachments/assets/1ebc9f9f-5196-4769-9874-f259ff45e3a5" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151902" src="https://github.com/user-attachments/assets/530614e8-c3a9-4d84-9949-c1bf316666d1" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151558" src="https://github.com/user-attachments/assets/3a1a8c1a-4bec-4603-8361-7b1f41f30cc4" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151625" src="https://github.com/user-attachments/assets/aaa9961e-9d29-4cac-af32-9368e6167ed3" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151656" src="https://github.com/user-attachments/assets/37c8ada8-bde0-4bce-8558-3f0ffdfe107e" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151708" src="https://github.com/user-attachments/assets/51f4d688-0c8f-4850-886c-dcbccb8989c5" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151721" src="https://github.com/user-attachments/assets/74f14f12-51b9-44ac-91b3-57cf64a9a4f3" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151750" src="https://github.com/user-attachments/assets/71ca8315-3fe1-4c28-a87e-bca12b4898b7" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151756" src="https://github.com/user-attachments/assets/19d767be-6fbf-4cdd-ac08-0700233b759a" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151807" src="https://github.com/user-attachments/assets/b7f75cd2-cd22-4bc1-afce-62b781c88977" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151837" src="https://github.com/user-attachments/assets/57d35b83-bc24-424a-be07-c5cee26f978c" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151822" src="https://github.com/user-attachments/assets/d300efb3-a165-42b9-b35c-07440c3a1267" />
+<img width="1109" height="742" alt="Screenshot 2026-03-11 151843" src="https://github.com/user-attachments/assets/26437b33-7181-488f-9ccb-a752b8e37beb" />
 
 ---
 
@@ -64,7 +72,7 @@ Add screenshots here (recommended):
 Clone the repository and build:
 
 ```bash
-git clone <your-repo-url>
+git clone github.com/remoshan/math-puzzle-game
 cd "Math Puzzle Game"
 mvn clean package
 ```
