@@ -8,8 +8,6 @@ This project is a modern **Java desktop** app that uses **Swing** for UI, **Flat
 
 ## Visuals
 
-Add screenshots here (recommended):
-
 <img width="1109" height="742" alt="Screenshot 2026-03-11 151510" src="https://github.com/user-attachments/assets/336576d2-1dbb-4247-ba10-074b644b507a" />
 <img width="1109" height="742" alt="Screenshot 2026-03-11 151522" src="https://github.com/user-attachments/assets/1ebc9f9f-5196-4769-9874-f259ff45e3a5" />
 <img width="1109" height="742" alt="Screenshot 2026-03-11 151902" src="https://github.com/user-attachments/assets/530614e8-c3a9-4d84-9949-c1bf316666d1" />
