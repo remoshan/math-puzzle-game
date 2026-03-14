@@ -11,8 +11,6 @@ public class MusicApi {
 
     public List<URI> getCandidateBackgroundMusicUris() {
         return List.of(
-                // Short public WAV samples; if any of these domains are blocked
-                // on the local network, MusicService will quietly fall back.
                 URI.create("https://samplelib.com/lib/preview/wav/sample-3s.wav"),
                 URI.create("https://samplelib.com/lib/preview/wav/sample-6s.wav")
         );

@@ -1,6 +1,5 @@
 package com.mathpuzzlegame;
 
-import com.mathpuzzlegame.net.BananaApi;
 import com.mathpuzzlegame.net.MusicApi;
 import com.mathpuzzlegame.service.ImageService;
 import com.mathpuzzlegame.service.MusicService;
@@ -19,8 +18,7 @@ public class Main {
             DatabaseManager databaseManager = new DatabaseManager("jdbc:sqlite:math_puzzle.db");
             AuthService authService = new AuthService(databaseManager);
             GameService gameService = new GameService(databaseManager);
-            BananaApi bananaApi = new BananaApi();
-            ImageService imageService = new ImageService(bananaApi);
+            ImageService imageService = new ImageService();  // ← no BananaApi arg
             MusicApi musicApi = new MusicApi();
             MusicService musicService = new MusicService(musicApi);
             ThemeManager themeManager = new ThemeManager();

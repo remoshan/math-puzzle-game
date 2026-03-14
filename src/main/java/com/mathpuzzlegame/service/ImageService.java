@@ -1,181 +1,164 @@
 package com.mathpuzzlegame.service;
 
-import com.mathpuzzlegame.net.BananaApi;
+import com.mathpuzzlegame.net.DogApi;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URL;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import javax.imageio.ImageIO;
+import java.util.concurrent.*;
 
 /**
- * Wraps the BananaApi and provides Swing-friendly image loading
- * for the game cards. Images are loaded asynchronously so the UI
- * thread stays responsive.
+ * Loads card images from the Dog CEO public API.
+ * Each card pair displays the same randomly fetched dog photo.
  */
 public class ImageService {
 
-    private final BananaApi bananaApi;
+    private static final int MAX_RETRIES = 3;
+
     private final ExecutorService imageExecutor = Executors.newFixedThreadPool(4, r -> {
         Thread t = new Thread(r, "image-loader");
         t.setDaemon(true);
         return t;
     });
-    private final Map<String, ImageIcon> urlCache = new ConcurrentHashMap<>();
-    private volatile boolean loggedPlaceholderNotice;
 
-    public ImageService(BananaApi bananaApi) {
-        this.bananaApi = bananaApi;
-    }
+    private final Map<String, ImageIcon> urlCache = new ConcurrentHashMap<>();
+
+    public ImageService() {}
+
+    // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Requests a set of images from BananaApi and returns a mapping
-     * from logical card index to an ImageIcon future. Consumers can
-     * attach callbacks to update card buttons when each image is ready.
+     * Returns a mapping from card-pair index → ImageIcon future.
+     * Each future resolves once its dog image has been downloaded.
      */
     public Map<Integer, CompletableFuture<ImageIcon>> loadCardImagesAsync(int pairCount, int iconSize) {
         Map<Integer, CompletableFuture<ImageIcon>> futures = new HashMap<>();
-        // Fetch the IDs on a worker thread so we never block the Swing EDT.
-        CompletableFuture<String[]> idsFuture =
-                CompletableFuture.supplyAsync(() -> BananaApi.fetchImages(pairCount), imageExecutor);
+
+        CompletableFuture<String[]> urlsFuture =
+                CompletableFuture.supplyAsync(
+                        () -> DogApi.fetchImageUrls(pairCount), imageExecutor);
 
         for (int i = 0; i < pairCount; i++) {
             final int index = i;
-            futures.put(index, idsFuture.thenApplyAsync(ids -> {
-                String raw = (ids != null && ids.length > index) ? ids[index] : ("card-" + index);
-                return createIconFromId(normalizeId(raw), iconSize);
+            futures.put(index, urlsFuture.thenApplyAsync(urls -> {
+                String url = (urls != null && urls.length > index) ? urls[index] : null;
+                System.out.println("[ImageService] Pair " + index + " → URL: " + url);
+                return buildIcon(url, iconSize);
             }, imageExecutor));
         }
+
         return futures;
     }
 
-    private String normalizeId(String raw) {
-        if (raw == null) {
-            return "";
-        }
-        String s = raw.trim();
+    // ── Image building ────────────────────────────────────────────────────────
 
-        // If the BananaApi parsing produced fragments like {url:https://...}
-        // or url:https:\/\/..., extract the URL portion.
-        int httpIdx = s.indexOf("http://");
-        if (httpIdx < 0) {
-            httpIdx = s.indexOf("https://");
-        }
-        if (httpIdx >= 0) {
-            s = s.substring(httpIdx).trim();
+    private ImageIcon buildIcon(String imageUrl, int iconSize) {
+        if (imageUrl == null || !imageUrl.startsWith("http")) {
+            System.err.println("[ImageService] Invalid or null URL, using placeholder.");
+            return createPlaceholderIcon(iconSize);
         }
 
-        // Unescape common JSON escapes for URLs
-        s = s.replace("\\/", "/");
+        // Return cached icon if already downloaded
+        ImageIcon cached = urlCache.get(imageUrl);
+        if (cached != null) return cached;
 
-        // Strip trailing braces/quotes/commas
-        s = s.replaceAll("[\"\\}\\]]+$", "");
-        s = s.replaceAll("^[\"\\{\\[]+", "");
-        return s.trim();
-    }
-
-    private ImageIcon createIconFromId(String id, int iconSize) {
-        // If Banana API returns a URL, attempt to load it directly
-        if (id != null && (id.startsWith("http://") || id.startsWith("https://"))) {
-            ImageIcon cached = urlCache.get(id);
-            if (cached != null) {
-                return cached;
-            }
+        // Attempt download with retries
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                BufferedImage img = downloadImageWithTimeouts(id);
+                System.out.println("[ImageService] Attempt " + attempt + " downloading: " + imageUrl);
+                BufferedImage img = downloadWithTimeouts(imageUrl);
                 if (img != null) {
                     ImageIcon icon = new ImageIcon(scaleToSquare(img, iconSize));
-                    urlCache.put(id, icon);
+                    urlCache.put(imageUrl, icon);
+                    System.out.println("[ImageService] ✓ Downloaded successfully: " + imageUrl);
                     return icon;
+                } else {
+                    System.err.println("[ImageService] ImageIO.read returned null for: " + imageUrl);
                 }
-            } catch (Exception ignored) {
-                // Fallback to generated icon below
+            } catch (Exception e) {
+                System.err.println("[ImageService] Attempt " + attempt + " failed: " + e.getMessage());
+                if (attempt < MAX_RETRIES) {
+                    try { Thread.sleep(500L * attempt); } catch (InterruptedException ignored) {}
+                }
             }
         }
 
-        // Log once per app run when we are not using remote Banana image URLs
-        if (!loggedPlaceholderNotice) {
-            loggedPlaceholderNotice = true;
-            System.out.println("Banana API did not provide usable image URLs. Using Banana-generated local card art based on Banana IDs.");
-        }
-
-        // Fallback: generate a vivid Apple-style "banana tile" based on the Banana ID.
-        BufferedImage img = new BufferedImage(iconSize, iconSize, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = img.createGraphics();
-        try {
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            int hash = id != null ? id.hashCode() : 0;
-
-            // Soft background
-            Color bg = new Color(245, 245, 248);
-            g2.setColor(bg);
-            g2.fillRoundRect(0, 0, iconSize, iconSize, iconSize / 3, iconSize / 3);
-
-            // Banana-colored inner shape with slight variation per ID
-            int hueShift = (hash & 0xFF);
-            float h = (45 + (hueShift % 60)) / 360f; // yellow/orange band
-            float s = 0.7f;
-            float b = 0.95f;
-            Color banana = Color.getHSBColor(h, s, b);
-            int inset = iconSize / 7;
-            g2.setColor(banana);
-            g2.fillRoundRect(inset, inset, iconSize - inset * 2, iconSize - inset * 2,
-                    iconSize / 2, iconSize / 2);
-
-            // Accent curve to suggest a banana silhouette with variation
-            g2.setColor(new Color(190, 150, 40, 220));
-            g2.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            int cx = iconSize / 2;
-            int cy = iconSize / 2;
-            int r = iconSize / 3;
-            int start = 10 + (hash % 40);
-            int extent = 120 + (hash % 60);
-            g2.drawArc(cx - r, cy - r / 2, r * 2, r, start, extent);
-
-            // Subtle border
-            g2.setColor(new Color(0, 0, 0, 40));
-            g2.setStroke(new BasicStroke(1.2f));
-            g2.drawRoundRect(0, 0, iconSize - 1, iconSize - 1, iconSize / 3, iconSize / 3);
-        } finally {
-            g2.dispose();
-        }
-        return new ImageIcon(img);
+        System.err.println("[ImageService] All retries failed for: " + imageUrl + " — using placeholder.");
+        return createPlaceholderIcon(iconSize);
     }
 
-    private BufferedImage downloadImageWithTimeouts(String urlStr) throws Exception {
+    private BufferedImage downloadWithTimeouts(String urlStr) throws Exception {
         URL url = new URL(urlStr);
-        HttpURLConnection con = (HttpURLConnection) url.openConnection();
-        con.setConnectTimeout(5000);
-        con.setReadTimeout(8000);
+
+        // Proxy.NO_PROXY bypasses system proxy settings that cause "Failed to select a proxy"
+        HttpURLConnection con = (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
+        con.setConnectTimeout(8_000);
+        con.setReadTimeout(12_000);
         con.setRequestMethod("GET");
         con.setInstanceFollowRedirects(true);
+        con.setRequestProperty("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        con.setRequestProperty("Accept", "image/jpeg,image/png,image/*,*/*");
+
+        int responseCode = con.getResponseCode();
+        System.out.println("[ImageService] HTTP " + responseCode + " for " + urlStr);
+
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            throw new Exception("HTTP error: " + responseCode);
+        }
+
         try (InputStream in = con.getInputStream()) {
             return ImageIO.read(in);
         }
     }
 
+    // ── Scaling ───────────────────────────────────────────────────────────────
+
     private BufferedImage scaleToSquare(BufferedImage src, int size) {
         BufferedImage dst = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = dst.createGraphics();
         try {
-            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.setRenderingHint(RenderingHints.KEY_RENDERING,
+                    RenderingHints.VALUE_RENDER_QUALITY);
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
             g2.drawImage(src, 0, 0, size, size, null);
         } finally {
             g2.dispose();
         }
         return dst;
     }
-}
 
+    // ── Placeholder (shown only if all retries fail) ──────────────────────────
+
+    private ImageIcon createPlaceholderIcon(int iconSize) {
+        BufferedImage img = new BufferedImage(iconSize, iconSize, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = img.createGraphics();
+        try {
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(180, 180, 190));
+            g2.fillRoundRect(2, 2, iconSize - 4, iconSize - 4, iconSize / 3, iconSize / 3);
+            g2.setColor(new Color(140, 140, 150));
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.drawRoundRect(2, 2, iconSize - 4, iconSize - 4, iconSize / 3, iconSize / 3);
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font(Font.SANS_SERIF, Font.BOLD, iconSize / 3));
+            FontMetrics fm = g2.getFontMetrics();
+            String q = "?";
+            g2.drawString(q, (iconSize - fm.stringWidth(q)) / 2,
+                    (iconSize - fm.getHeight()) / 2 + fm.getAscent());
+        } finally {
+            g2.dispose();
+        }
+        return new ImageIcon(img);
+    }
+}
