@@ -18,7 +18,11 @@ public class Main {
             DatabaseManager databaseManager = new DatabaseManager("jdbc:sqlite:math_puzzle.db");
             AuthService authService = new AuthService(databaseManager);
             GameService gameService = new GameService(databaseManager);
+<<<<<<< Updated upstream
             ImageService imageService = new ImageService();  // ← no BananaApi arg
+=======
+            ImageService imageService = new ImageService();
+>>>>>>> Stashed changes
             MusicApi musicApi = new MusicApi();
             MusicService musicService = new MusicService(musicApi);
             ThemeManager themeManager = new ThemeManager();
